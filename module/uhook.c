@@ -13,6 +13,7 @@
  *
  *	peiyong.feng<peiyong.feng.kernel@gmail.com>
  */
+#include <linux/version.h>
 #include <linux/sched.h>
 #include <linux/module.h>
 #include <linux/fs.h>
@@ -23,13 +24,12 @@
 #include <linux/time.h>
 #include <linux/vmalloc.h>
 #include <linux/kallsyms.h>
-
 #include <asm/ioctls.h>
 
 /*struct uhook*/
 #define   MAX_ARGV_LEN	 512			/*The length of the buffer used to staorge argv*/
 #define   UHOOK_STA_LEN	 32			/*The length of the buffer used to staorge argv*/
-#define   VERSION_LEN    128 
+#define   VERSION_LEN    128
 
 #define   MODULE_VER    "v0.1"
 
@@ -88,14 +88,18 @@ static ssize_t uhook_read(struct file *file, char __user *buf,
 	return 0;
 }
 
+static ssize_t uhook_write(struct file *file, const char __user *buf, size_t count, loff_t *pos)
+{
+	return 0;
+}
 
-
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(4, 1, 0)
 static ssize_t uhook_aio_write(struct kiocb *iocb, const struct iovec *iov,
 			 unsigned long nr_segs, loff_t ppos)
 {
 	return 0;
 }
-
+#endif
 
 
 static int uhook_open(struct inode *inode, struct file *file)
@@ -121,8 +125,8 @@ static long uhook_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	char *noexsit = "no-exsit";
 	char *success = "success";
 	char *fail = "fail";
-	char *module_ver = MODULE_VER; 
-	char *ver = NULL; 
+	char *module_ver = MODULE_VER;
+	char *ver = NULL;
 
 	struct uhook	uhook;
 	unsigned long addr;
@@ -145,7 +149,7 @@ static long uhook_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				return -EFAULT;
 			}
 			ret = 0;
-			if (copy_to_user(&tmp->ret, &ret, sizeof(unsigned long))) {
+			if (copy_to_user(&tmp->ret, &ret, sizeof(int))) {
 				mutex_unlock(&desc->mutex);
 				return -EFAULT;
 			}
@@ -157,7 +161,7 @@ static long uhook_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 		} else {
 			ret = -1;
-			if (copy_to_user(&tmp->addr, &ret, sizeof(unsigned long))) {
+			if (copy_to_user(&tmp->addr, &ret, sizeof(int))) {
 				mutex_unlock(&desc->mutex);
 				return -EFAULT;
 			}
@@ -198,7 +202,7 @@ static long uhook_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			mutex_unlock(&desc->mutex);
 		} else {
 			ret = -1;
-			if (copy_to_user(&tmp->addr, &ret, sizeof(unsigned long))) {
+			if (copy_to_user(&tmp->addr, &ret, sizeof(int))) {
 				mutex_unlock(&desc->mutex);
 				return -EFAULT;
 			}
@@ -245,7 +249,7 @@ static long uhook_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		} else {
 			ret = -1;
 
-			if (copy_to_user(&tmp->addr, &ret, sizeof(unsigned long))) {
+			if (copy_to_user(&tmp->addr, &ret, sizeof(int))) {
 				mutex_unlock(&desc->mutex);
 				return -EFAULT;
 			}
@@ -273,7 +277,7 @@ static long uhook_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		}
 		mutex_unlock(&desc->mutex);
 		break;
-		
+
 	default:
 		printk(KERN_ERR"Unknown cmd\n");
 	}
@@ -286,7 +290,10 @@ static long uhook_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 static const struct file_operations uhook_fops = {
 	.owner = THIS_MODULE,
 	.read = uhook_read,
+	.write = uhook_write,
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(4, 1, 0)
 	.aio_write = uhook_aio_write,
+#endif
 	.unlocked_ioctl = uhook_ioctl,
 	.compat_ioctl = uhook_ioctl,
 	.open = uhook_open,
